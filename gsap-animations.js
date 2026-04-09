@@ -2617,40 +2617,20 @@ function initMobileProcess() {
         dots[key] = dots[key].filter(d => d);
     }
 
-    let tlRedMap = gsap.timeline({ paused: true });
-
     if (redMapSvg) gsap.set(redMapSvg, { autoAlpha: 0 });
 
-    if (redMaskPath && redFillLayer && redMapSvg) {
+    if (redMaskPath && redFillLayer) {
 
         const redLength = redMaskPath.getTotalLength();
         gsap.set(redMaskPath, { strokeDasharray: redLength, strokeDashoffset: redLength });
         gsap.set(redFillLayer, { autoAlpha: 0 });
-
-        tlRedMap.to(redMapSvg, { autoAlpha: 1, duration: 0.1, ease: "none" });
-        tlRedMap.to(redMaskPath, { strokeDashoffset: 0, duration: 0.8, ease: "none" }, "<");
-
-        tlRedMap.to(redFillLayer, { autoAlpha: 1, duration: 0.2, ease: "power2.out" });
     }
 
-    const playRedMap = () => { tlRedMap.play(); };
-    const reverseRedMap = () => { tlRedMap.reverse(); };
-
-    let tlBlueMap = gsap.timeline({ paused: true });
     if (blueMaskPath && blueFillLayer) {
 
         const blueLength = blueMaskPath.getTotalLength();
         gsap.set(blueMaskPath, { strokeDasharray: blueLength, strokeDashoffset: blueLength, autoAlpha: 1 });
         gsap.set(blueFillLayer, { autoAlpha: 0 });
-
-        tlBlueMap.to(blueMaskPath, { strokeDashoffset: 0, duration: 0.8, ease: "none" });
-
-        tlBlueMap.to(blueFillLayer, { autoAlpha: 1, duration: 0.05, ease: "power2.out" });
-    }
-
-    const playBlueMap = () => { tlBlueMap.play(); };
-    const reverseBlueMap = () => {
-        tlBlueMap.reverse();
     }
 
     gsap.set(wrapper, { position: "relative", minHeight: "22rem", display: "block" });
@@ -2689,21 +2669,34 @@ function initMobileProcess() {
 
     ScrollTrigger.refresh();
 
+    const procesPinTarget = section.querySelector("[data-proces-anim-container=\"true\"]") || section;
+
     const tl = gsap.timeline({
         scrollTrigger: {
             trigger: section,
             start: "top top",
-            end: "+=800%",
-            pin: true,
+            end: "+=920%",
+            pin: procesPinTarget,
             pinSpacing: false,
             scrub: 1
         }
     });
 
     const exitY = "-2rem";
-    const enterDuration = 1;
-    const exitDuration = 0.8;
-    const pauseDuration = 0.5;
+    /** < 1 — менше скролу, швидше до фіналу таймлайну. */
+    const PROCESS_MOBILE_SPEED = 0.56;
+    const s = PROCESS_MOBILE_SPEED;
+    const enterDuration = 1 * s;
+    const exitDuration = 0.8 * s;
+    /** Пауза в скролі: після появи пари desc користувач крутить далі, анімація стоїть. */
+    const STEP_SCROLL_GAP = 8.4 * s;
+    /** Довше утримання після desc 3 + 4 (перед червоною картою / мапою). */
+    const STEP_SCROLL_GAP_AFTER_3_4 = 33 * s;
+    const HOLD_AFTER_MAP = 0.85 * s;
+    const TAIL_PAUSE = 65 * s;
+    const PHASE_CROSS = 1 * s;
+    const INFO_SQUARE_DUR = 0.5 * s;
+    const STEP_MICRO = 0.2 * s;
 
     const animateStepIn = (stepId, position = "<") => {
         if (!cards[stepId]) return;
@@ -2750,10 +2743,10 @@ function initMobileProcess() {
 
     if (cards[1]) animateStepIn(1);
 
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[2]) animateStepIn(2);
 
-    tl.to({}, { duration: pauseDuration });
+    tl.to({}, { duration: STEP_SCROLL_GAP });
 
     if (cards[1] || cards[2]) {
         tl.addLabel("exit1-2");
@@ -2761,17 +2754,51 @@ function initMobileProcess() {
         if (cards[2]) animateStepOut(2, "exit1-2");
     }
 
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
 
     if (cards[3]) { animateStepIn(3); }
-    tl.to({}, { duration: 0.2 });
-    if (cards[4]) { animateStepIn(4); }
+    tl.to({}, { duration: STEP_MICRO });
 
-    tl.to({}, { duration: pauseDuration });
+    // Крок 4: червона мапа стартує рівно коли dot 1-4 досягає ~1% opacity (тригер)
+    if (cards[4]) {
+        const card4 = cards[4];
+        const bar4 = bars[4];
+        const dot14 = section.querySelector('[data-anim-process-dot="1-4"]');
+        const dot14TriggerOpacity = 0.01;
+        const dot14ToTriggerDur = 0.04 * s;
 
-    tl.to({}, { duration: 0.1, onStart: playRedMap, onReverseComplete: reverseRedMap });
+        tl.addLabel("step4");
+        tl.to(card4, {
+            opacity: 1,
+            y: 0,
+            visibility: "visible",
+            duration: enterDuration
+        }, "step4");
+        if (bar4) {
+            tl.to(bar4, { x: "-80%", duration: enterDuration }, "step4");
+        }
+        if (dot14) {
+            tl.to(dot14, {
+                autoAlpha: dot14TriggerOpacity,
+                duration: dot14ToTriggerDur,
+                ease: "none"
+            }, "step4");
+        }
+        if (redMapSvg && redMaskPath && redFillLayer) {
+            const mapStart = `step4+=${dot14ToTriggerDur}`;
+            tl.to(redMapSvg, { autoAlpha: 1, duration: 0.12 * s, ease: "none" }, mapStart);
+            tl.to(redMaskPath, { strokeDashoffset: 0, duration: 0.88 * s, ease: "none" }, "<");
+            tl.to(redFillLayer, { autoAlpha: 1, duration: 0.28 * s, ease: "power2.out" }, `-=${0.22 * s}`);
+        }
+        if (dot14) {
+            const dotRestDur = Math.max(enterDuration - dot14ToTriggerDur, 0.12 * s);
+            tl.to(dot14, { autoAlpha: 1, duration: dotRestDur, ease: "power2.out" }, `step4+=${dot14ToTriggerDur}`);
+        }
+    }
 
-    tl.to({}, { duration: 1 });
+    tl.to({}, { duration: STEP_SCROLL_GAP_AFTER_3_4 });
+
+    tl.to({}, { duration: HOLD_AFTER_MAP });
 
     if (cards[3] || cards[4]) {
         tl.addLabel("exit3-4");
@@ -2779,23 +2806,23 @@ function initMobileProcess() {
         if (cards[4]) animateStepOut(4, "exit3-4");
     }
 
-    tl.addLabel("phase2Start", "+=0.1");
+    tl.addLabel("phase2Start", `+=${0.1 * s}`);
 
-    if (redMapSvg) tl.to(redMapSvg, { autoAlpha: 0.2, duration: 1, ease: "none" }, "phase2Start");
-    if (redFillLayer) tl.to(redFillLayer, { autoAlpha: 0, duration: 1, ease: "none" }, "phase2Start");
+    if (redMapSvg) tl.to(redMapSvg, { autoAlpha: 0.2, duration: PHASE_CROSS, ease: "none" }, "phase2Start");
+    if (redFillLayer) tl.to(redFillLayer, { autoAlpha: 0, duration: PHASE_CROSS, ease: "none" }, "phase2Start");
 
     const phase1Dots = [...dots[1], ...dots[2], ...dots[3], ...dots[4]].filter(d => d);
     if (phase1Dots.length) {
-        tl.to(phase1Dots, { autoAlpha: 0.2, duration: 1, ease: "none" }, "phase2Start");
+        tl.to(phase1Dots, { autoAlpha: 0.2, duration: PHASE_CROSS, ease: "none" }, "phase2Start");
     }
 
     if (infoSquare) tl.to(infoSquare, {
-        backgroundColor: "#ffffff", duration: 0.5, ease: "none",
+        backgroundColor: "#ffffff", duration: INFO_SQUARE_DUR, ease: "none",
         onStart: () => {
             if (infoTitle) {
                 infoTitle.innerHTML = '<span id="brand-s1-mobile" style="color:#62B0FF">KULBIT</span> <span id="brand-s2-mobile" style="color:#ffffff">AI-Elevated Production</span>';
-                gsap.to("#brand-s1-mobile", { duration: 1, scrambleText: { text: "KULBIT", chars: "upperCase", speed: 0.3 } });
-                gsap.to("#brand-s2-mobile", { duration: 1.5, delay: 0.2, scrambleText: { text: "AI-Elevated Production", chars: "upperCase", speed: 0.3 } });
+                gsap.to("#brand-s1-mobile", { duration: PHASE_CROSS, scrambleText: { text: "KULBIT", chars: "upperCase", speed: 0.3 } });
+                gsap.to("#brand-s2-mobile", { duration: 1.5 * s, delay: 0.2 * s, scrambleText: { text: "AI-Elevated Production", chars: "upperCase", speed: 0.3 } });
             }
         },
         onReverseComplete: () => {
@@ -2803,52 +2830,54 @@ function initMobileProcess() {
         }
     }, "phase2Start");
 
-    if (infoTitleWrapper) tl.to(infoTitleWrapper, { width: "100%", duration: 0.5, ease: "none" }, "<");
+    if (infoTitleWrapper) tl.to(infoTitleWrapper, { width: "100%", duration: INFO_SQUARE_DUR, ease: "none" }, "<");
 
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[5]) { animateStepIn(5); }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[6]) { animateStepIn(6); }
-    tl.to({}, { duration: pauseDuration });
+    tl.to({}, { duration: STEP_SCROLL_GAP });
 
     if (cards[5] || cards[6]) {
         tl.addLabel("exit5-6");
         if (cards[5]) animateStepOut(5, "exit5-6");
         if (cards[6]) animateStepOut(6, "exit5-6");
     }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[7]) { animateStepIn(7); }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[8]) { animateStepIn(8); }
-    tl.to({}, { duration: pauseDuration });
+    tl.to({}, { duration: STEP_SCROLL_GAP });
 
-    tl.to({}, { duration: 0.1, onStart: playBlueMap, onReverseComplete: reverseBlueMap });
-
-    tl.to({}, { duration: 1 });
+    if (blueMaskPath && blueFillLayer) {
+        tl.to(blueMaskPath, { strokeDashoffset: 0, duration: 0.85 * s, ease: "none" });
+        tl.to(blueFillLayer, { autoAlpha: 1, duration: 0.12 * s, ease: "power2.out" }, `-=${0.08 * s}`);
+    }
+    tl.to({}, { duration: HOLD_AFTER_MAP });
 
     if (cards[7] || cards[8]) {
         tl.addLabel("exit7-8");
         if (cards[7]) animateStepOut(7, "exit7-8");
         if (cards[8]) animateStepOut(8, "exit7-8");
     }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[9]) { animateStepIn(9); }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[10]) { animateStepIn(10); }
-    tl.to({}, { duration: pauseDuration });
+    tl.to({}, { duration: STEP_SCROLL_GAP });
 
     if (cards[9] || cards[10]) {
         tl.addLabel("exit9-10");
         if (cards[9]) animateStepOut(9, "exit9-10");
         if (cards[10]) animateStepOut(10, "exit9-10");
     }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[11]) { animateStepIn(11); }
-    tl.to({}, { duration: 0.2 });
+    tl.to({}, { duration: STEP_MICRO });
     if (cards[12]) { animateStepIn(12); }
-    tl.to({}, { duration: pauseDuration });
+    tl.to({}, { duration: STEP_SCROLL_GAP });
 
-    tl.to({}, { duration: 65 });
+    tl.to({}, { duration: TAIL_PAUSE });
 }
 
 function initMobileServices() {
@@ -2864,15 +2893,13 @@ function initMobileServices() {
 
     if (!textWrapper || !cardsWrapper) return;
 
-    // timeline timeline:
-    // - textWrapper tween: duration 1 (starts at 0)
-    // - cardsWrapper y tween: duration 3 (starts at 0)
-    // - cards x tween: starts at ">" => after max(1,3) => 3, duration 10
-    // So cards x is animated only inside progress window [3/13 .. 1].
-    const TEXT_WRAPPER_DUR = 1;
-    const CARDS_Y_DUR = 3;
+    // Timeline: спочатку SCROLL_LEAD_IN — скрол іде, візуально все ще нерухоме (секція вже "top top").
+    // Далі text + cardsY паралельно, потім горизонталь карток.
+    const SCROLL_LEAD_IN = 1.35;
+    const TEXT_WRAPPER_DUR = 1.2;
+    const CARDS_Y_DUR = 3.5;
     const X_DUR = 10;
-    const xStartTime = Math.max(TEXT_WRAPPER_DUR, CARDS_Y_DUR);
+    const xStartTime = SCROLL_LEAD_IN + Math.max(TEXT_WRAPPER_DUR, CARDS_Y_DUR);
     const totalTime = xStartTime + X_DUR;
     const xStartRatio = totalTime > 0 ? xStartTime / totalTime : 0;
 
@@ -2881,9 +2908,8 @@ function initMobileServices() {
             trigger: section,
             start: "top top",
             end: "bottom bottom",
-            // На мобілці плавне "доскролюване" часто виглядає як інерція.
-            // Перемикаємося на scrub без числової затримки, щоб snap спрацьовував стабільніше.
-            scrub: true,
+            // Числовий scrub дає легке відставання від пальця — плавніший рух; snap трохи довший для узгодженості.
+            scrub: 1.05,
             // "Липання" на мобілці: швидко підтягуємо до найближчої позиції картки.
             // Важливо: прив'язуємо snap лише до прогресу активного x-вікна.
             snap:
@@ -2892,7 +2918,7 @@ function initMobileServices() {
                         // Щоб не було "двоетапного" підхоплення через інерцію:
                         // робимо snap майже миттєвим, тоді навіть якщо спрацьовує кілька разів,
                         // воно не виглядає як друга анімація.
-                        duration: 0.08,
+                        duration: 0.12,
                         delay: 0,
                         ease: "none",
                         snapTo: (value) => {
@@ -2915,9 +2941,9 @@ function initMobileServices() {
     tl.to(textWrapper, {
         y: -50,
         autoAlpha: 0,
-        duration: 1,
-        ease: "power2.out"
-    }, 0);
+        duration: TEXT_WRAPPER_DUR,
+        ease: "power3.out"
+    }, SCROLL_LEAD_IN);
 
     tl.to(cardsWrapper, {
         y: () => {
@@ -2928,18 +2954,18 @@ function initMobileServices() {
 
             return -(cardsRect.top - containerRect.top) + offset;
         },
-        duration: 3,
-        ease: "power2.out"
-    }, 0);
+        duration: CARDS_Y_DUR,
+        ease: "power3.out"
+    }, SCROLL_LEAD_IN);
 
     tl.to(cards, {
         x: () => {
 
             return -(cardsWrapper.scrollWidth - window.innerWidth + 20);
         },
-        duration: 10,
+        duration: X_DUR,
         ease: "none"
-    }, ">");
+    }, xStartTime);
 }
 
 function initMobileBenefits() {
