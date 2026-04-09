@@ -30,7 +30,14 @@ function initAnimations() {
         initScrollDisableLogic();
 
         initHeroVideoPause();
+
+        dispatchKulbitGsapReady();
     });
+}
+
+function dispatchKulbitGsapReady() {
+    window.__kulbitGsapReady = true;
+    window.dispatchEvent(new CustomEvent("kulbit:animations-ready"));
 }
 
 function initStageBenefitsParallax() {
@@ -465,12 +472,16 @@ function initPreloader() {
 
     // --- Set initial hidden states for hero elements ---
     const header = document.querySelector('header');
-    const heroBgVideo = document.querySelector('.hero-bg-video');
+    const heroBgVideos = document.querySelectorAll("section.hero .hero-bg-video");
     const heroTextSquares = document.querySelectorAll('.hero-text-square');
     const buttonHero = document.querySelector('[data-anim-preloder="button-hero"]');
 
     if (header) gsap.set(header, { opacity: 0, y: "-7rem" });
-    if (heroBgVideo) gsap.set(heroBgVideo, { opacity: 0 });
+    if (heroBgVideos.length) gsap.set(heroBgVideos, { opacity: 0 });
+    else {
+        const heroBgVideo = document.querySelector(".hero-bg-video");
+        if (heroBgVideo) gsap.set(heroBgVideo, { opacity: 0 });
+    }
     if (heroTextSquares.length) gsap.set(heroTextSquares, { opacity: 0, y: "3rem" });
     if (buttonHero) gsap.set(buttonHero, { x: "-6.25em", y: "6.25em" });
 
@@ -577,7 +588,8 @@ function initPreloader() {
 function initHeroIntroAnimation() {
 
     const header = document.querySelector('header');
-    const heroBgVideo = document.querySelector('.hero-bg-video');
+    const heroBgVideos = gsap.utils.toArray(document.querySelectorAll("section.hero .hero-bg-video"));
+    const heroBgVideo = heroBgVideos[0] || document.querySelector(".hero-bg-video");
     const heroTextSquares = document.querySelectorAll('.hero-text-square');
     const buttonHero = document.querySelector('[data-anim-preloder="button-hero"]');
     const headingH1 = document.querySelector('.heading-size-h1');
@@ -714,7 +726,8 @@ function initHeroIntroAnimation() {
     const recoverHeroIntro = (reason) => {
         if (reason) console.warn("Hero intro fallback:", reason);
         if (heroIntroScrollLocked) unlockScroll();
-        if (heroBgVideo) gsap.set(heroBgVideo, { opacity: 1 });
+        if (heroBgVideos.length) gsap.set(heroBgVideos, { opacity: 1 });
+        else if (heroBgVideo) gsap.set(heroBgVideo, { opacity: 1 });
         if (header) gsap.set(header, { opacity: 1, y: "0rem" });
         if (headingH1) gsap.set(headingH1, { opacity: 1 });
         if (h1Chars.length) gsap.set(h1Chars, { opacity: 1 });
@@ -728,9 +741,10 @@ function initHeroIntroAnimation() {
     };
 
     window.setTimeout(() => {
-        if (!heroBgVideo) return;
-        const op = parseFloat(window.getComputedStyle(heroBgVideo).opacity || "1");
-        if (op < 0.05) recoverHeroIntro("hero video still invisible after timeout (desktop CSS opacity:0)");
+        const nodes = heroBgVideos.length ? heroBgVideos : heroBgVideo ? [heroBgVideo] : [];
+        if (!nodes.length) return;
+        const anyHidden = nodes.some((el) => parseFloat(window.getComputedStyle(el).opacity || "1") < 0.05);
+        if (anyHidden) recoverHeroIntro("hero video still invisible after timeout (desktop CSS opacity:0)");
     }, 6000);
 
     try {
@@ -741,7 +755,9 @@ function initHeroIntroAnimation() {
         window.addEventListener("keydown", preventKeys, { passive: false });
         heroIntroScrollLocked = true;
 
-        if (heroBgVideo) {
+        if (heroBgVideos.length) {
+            tl.to(heroBgVideos, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 0);
+        } else if (heroBgVideo) {
             tl.to(heroBgVideo, { opacity: 1, duration: 0.5, ease: "power2.inOut" }, 0);
         }
 
@@ -3968,6 +3984,7 @@ document.addEventListener("DOMContentLoaded", () => {
             initMobileAnimations();
             initSmoothScrollMobile();
             initMobileMenuClose();
+            dispatchKulbitGsapReady();
         }
     });
 });
